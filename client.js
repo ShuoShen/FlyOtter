@@ -1,38 +1,46 @@
     var shouldNotify = true;
+    var paused = true;
     var socket = io.connect('http://localhost:8080');
-	var UNIVERSE = 100000;
-	var rid = Math.floor(Math.random() * UNIVERSE);
-	socket.on('notification', function (data) {
-		console.error('hello notification');
-	    var msg = JSON.parse(data.message);
-	    console.error(msg);
-	    if (msg.rid == rid) {
-	    	return;
-	    }
-	    shouldNotify = false;
-	    switch(msg.operator) {
-	    case 'play':
-	    	console.error('told to play');
-            playVideo();
-	    	break;
-	    case 'pause':
-	    	console.error('told to pause');
-	    	pauseVideo();
-	    	break;
-	    }
-	});
-	
-	
-	function notifyServer(operator) {
-    	if (!shouldNotify) {
-    		shouldNotify = true;
-    		return;
-    	}
-		
-		$.post('http://localhost:8080/?operator=' + operator + '&rid=' + rid, function(a) {}); 
-	}
-	
-	
+    var UNIVERSE = 100000;
+    var rid = Math.floor(Math.random() * UNIVERSE);
+    socket.on('notification', function (data) {
+        //console.error('hello notification');
+        var msg = JSON.parse(data.message);
+        console.error(msg);
+        console.error(rid);
+        if (Number(msg.rid) === rid) {
+            return;
+        }
+        shouldNotify = false;
+        switch(msg.operator) {
+            case 'play':
+                console.error('told to play');
+                playVideo();
+                break;
+            case 'pause':
+                console.error('told to pause');
+                pauseVideo();
+                break;
+            case 'seek':
+                console.error('told to seek');
+                seekVideoTo(parseFloat(msg.stt));
+                break;
+            default:
+                break;
+        }
+    });
+
+
+    function notifyServer(operator, seekToTime) {
+        if (!shouldNotify) {
+            shouldNotify = true;
+            return;
+        }
+        console.error('http://localhost:8080/?operator=' + operator + '&rid=' + rid + '&stt=' + seekToTime);
+        $.post('http://localhost:8080/?operator=' + operator + '&rid=' + rid + '&stt=' + seekToTime, function(a) {}); 
+    }
+
+    
     // 2. This code loads the IFrame Player API code asynchronously.
     var tag = document.createElement('script');
 
@@ -65,9 +73,9 @@
     //    The function indicates that when playing a video (state=1),
     //    the player should play for six seconds and then stop.
     function onPlayerStateChange(event) {
-    	
-    	console.error(event);
-    	/*
+        
+        console.error(event);
+        /*
 
         -1 – unstarted
         0 – ended
@@ -76,22 +84,37 @@
         3 – buffering
         5 – video cued
         */
-    	
-    	switch(event.data) {
-    	case 2:
-            pauseVideo();
+        
+        switch(event.data) {
+        case 2:
+            if (!paused)
+            {
+                paused = true;
+                notifyServer('pause');
+            }
+            else
+            {
+                console.error(player.getCurrentTime());
+                notifyServer('seek', player.getCurrentTime());
+            }
             break;
-    	case 1:
-    		playVideo();
-    		break;
-    	}
+        case 1:
+            notifyServer('play');
+            if (paused)
+            {
+                paused = false;
+            }
+            break;
+        default:
+            break;
+        }
 
     }
     
     function pauseVideo() {
-    	console.error('pausing');
-    	player.pauseVideo();
-        notifyServer('pause');
+        //console.error('pausing');
+        player.pauseVideo();
+        
     }
     
     function stopVideo() {
@@ -100,7 +123,11 @@
     }
     
     function playVideo() {
-    	player.playVideo();
-    	notifyServer('play');
+        player.playVideo();
+    }
+
+    function seekVideoTo(time) {
+        console.error(time);
+        player.seekTo(time);
     }
    
