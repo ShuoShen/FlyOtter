@@ -25,22 +25,37 @@
                 console.error('told to seek');
                 seekVideoTo(parseFloat(msg.stt));
                 break;
+            case 'load':
+                console.error('load ' + msg.arg);
+                player.loadVideoById(msg.arg);
+                break;
             default:
                 break;
         }
     });
 
 
-    function notifyServer(operator, seekToTime) {
+    function notifyServer(operator, seekToTime, arg) {
         if (!shouldNotify) {
             shouldNotify = true;
             return;
         }
         console.error('http://localhost:8080/?operator=' + operator + '&rid=' + rid + '&stt=' + seekToTime);
-        $.post('http://localhost:8080/?operator=' + operator + '&rid=' + rid + '&stt=' + seekToTime, function(a) {}); 
+        $.post('http://localhost:8080/?operator=' + operator + '&rid=' + rid + '&stt=' + seekToTime + '&arg=' + arg, function(a) {}); 
     }
 
-    
+		// A $( document ).ready() block.
+$( document ).ready(function() {
+	console.log( "ready!" );
+	var button = document.getElementById('btn');
+	button.onclick =function(evt) {
+		var input = document.getElementById('input');
+		player.loadVideoById(input.value);
+		notifyServer('load', 0, input.value);
+	};
+});
+
+	
     // 2. This code loads the IFrame Player API code asynchronously.
     var tag = document.createElement('script');
 
