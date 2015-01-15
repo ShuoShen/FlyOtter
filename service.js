@@ -6,6 +6,8 @@ var app = require('http').createServer(handler)
 , io = require('socket.io').listen(app)
 , url = require('url')
 
+var msg = require('./msg.js');
+
 app.listen(8080);
 
 function handler (req, res) {

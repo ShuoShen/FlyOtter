@@ -1,8 +1,9 @@
-    var shouldNotify = true;
+var shouldNotify = true;
     var paused = true;
     var socket = io.connect('http://localhost:8080');
     var UNIVERSE = 100000;
     var rid = Math.floor(Math.random() * UNIVERSE);
+    console.error(msg);
     socket.on('notification', function (data) {
         //console.error('hello notification');
         var msg = JSON.parse(data.message);
