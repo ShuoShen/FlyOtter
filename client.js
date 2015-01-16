@@ -14,8 +14,16 @@
         latest_server_action = data.request;
         
         // TODO(shen) apply the action here
+        switch(data.msgType) {
+        case msg.MessageType.CHECK_LATENCY:
+            notifyServer(createMessage(true));
+            break;
+        case msg.MessageType.ACTION:
+            applyActionToPlayer(data, player);
+            break;
+        }
         
-        
+        return;
         
         
         //console.error('hello notification');
@@ -48,6 +56,59 @@
         }
     });
 
+    function createMessage(is_ack, rid, state) {
+        if (is_ack) {
+            return {
+                msgType: msg.MessageType.ACK,
+            };
+        } else {
+            return {
+                msgType: msg.MessageType.REQUEST,
+                clientId: rid,
+                playerState: state.playerState,
+                playerTime: state.playerTime,
+            };
+        }
+    }
+    
+    function applyActionToState(state, action) {
+        if (state === null || action === null) {
+            return null;
+        } else {
+            
+        }
+    }
+    
+    function applyActionToPlayer(data, player) {
+        latest_server_action = data.playerAction; 
+            
+        switch (data.playerAction) {
+        case player_action.PLAYER_ACTION.PLAY:
+            player.playVideo();
+            break;
+        case player_action.PLAYER_ACTION.PAUSE:
+            player.pauseVideo();
+            break;
+        case player_action.PLAYER_ACTION.SEEK:
+            player.seekVideoTo(data.playerTime);
+            break;
+        }
+    }
+    
+    /** 
+     * returns true if state are deemed to be same
+     * @param old_state
+     * @param new_state
+     * @returns {Boolean}
+     */
+    function compareStates(old_state, new_state) {
+        if (old_state.playerState === new_state.playerState) {
+            return Math.abs(old_state.playerTime - new_state.playerTime) <= 2 * debounce_timeout; 
+        } else {
+            return false;
+        }
+    }
+    
     function getState(player) {
         var state = {
                 playerState: player.getPlayerState(),
@@ -56,13 +117,12 @@
         return state;
     }
 
-    function notifyServer(operator, seekToTime, arg) {
-        if (!shouldNotify) {
-            shouldNotify = true;
-            return;
-        }
-        console.error('http://localhost:8080/?operator=' + operator + '&rid=' + rid + '&stt=' + seekToTime);
-        $.post('http://localhost:8080/?operator=' + operator + '&rid=' + rid + '&stt=' + seekToTime + '&arg=' + arg, function(a) {}); 
+    function notifyServer(msg) {
+        $.post('http://localhost:8080/?msgType=' + msg.msgType 
+                + '&clientId=' + msg.clientId 
+                + '&playerTime=' + msg.playerTime 
+                + '&playerState=' + msg.playerState, 
+                function(a) {}); 
     }
 
 		// A $( document ).ready() block.
@@ -94,6 +154,30 @@ $( document ).ready(function() {
     var onPlayerStateChange = _.debounce(function (event) {
         
         console.error(event);
+        
+        /**
+         * TODO apply the action to state and get a new state. compare it with the 
+         * current state
+         */
+        
+        new_state = applyActionToState(state_before_latest_server_action, latest_server_action);
+        actual_state = getState(player);
+        
+        // new_state === null means there was no action 
+        // if actual state is different from new state, then it's probably triggered by user action
+        // if compared states are the same, then acknowledge, otherwise report current state to server
+        if (new_state === null || !compareStates(actual_state, new_state)) {
+            msg = createMessage(false, rid, actual_state);
+        } else {
+            msg = createMessage(true);
+        }
+        
+        notifyServer(msg);
+        
+        /**
+         *  clear the action and state. 
+         */
+        state_before_latest_server_action = latest_server_action = false;
 
        /*
         -1 – unstarted
