@@ -1,10 +1,23 @@
-var shouldNotify = true;
+    var state_before_latest_server_action = null;
+    var lastest_server_action = null; 
+    var debounce_timeout = 100;
+    var shouldNotify = true;
     var paused = true;
     var socket = io.connect('http://localhost:8080');
     var UNIVERSE = 100000;
     var rid = Math.floor(Math.random() * UNIVERSE);
     console.error(msg);
     socket.on('notification', function (data) {
+        state_before_latest_server_action = getState(player);
+        
+        // action: {operator: ..., parameter}
+        latest_server_action = data.request;
+        
+        // TODO(shen) apply the action here
+        
+        
+        
+        
         //console.error('hello notification');
         var msg = JSON.parse(data.message);
         console.error(msg);
@@ -35,6 +48,13 @@ var shouldNotify = true;
         }
     });
 
+    function getState(player) {
+        var state = {
+                playerState: player.getPlayerState(),
+                playerTime: player.getCurrentTime(),
+            };
+        return state;
+    }
 
     function notifyServer(operator, seekToTime, arg) {
         if (!shouldNotify) {
@@ -68,6 +88,49 @@ $( document ).ready(function() {
     //    after the API code downloads.
     var player;
    
+    // 5. The API calls this function when the player's state changes.
+    //    The function indicates that when playing a video (state=1),
+    //    the player should play for six seconds and then stop.
+    var onPlayerStateChange = _.debounce(function (event) {
+        
+        console.error(event);
+
+       /*
+        -1 – unstarted
+        0 – ended
+        1 – playing
+        2 – paused
+        3 – buffering
+        5 – video cued
+        */
+        
+        
+//        switch(event.data) {
+//        case 2:
+//            if (!paused)
+//            {
+//                paused = true;
+//                notifyServer('pause');
+//            }
+//            else
+//            {
+//                console.error(player.getCurrentTime());
+//                notifyServer('seek', player.getCurrentTime());
+//            }
+//            break;
+//        case 1:
+//            notifyServer('play');
+//            if (paused)
+//            {
+//                paused = false;
+//            }
+//            break;
+//        default:
+//            break;
+//        }
+
+    }, debounce_timeout);
+    
     function onYouTubeIframeAPIReady() {
         player = new YT.Player('player', {
             height: '390',
@@ -85,48 +148,6 @@ $( document ).ready(function() {
         //event.target.playVideo();
     }
 
-    // 5. The API calls this function when the player's state changes.
-    //    The function indicates that when playing a video (state=1),
-    //    the player should play for six seconds and then stop.
-    function onPlayerStateChange(event) {
-        
-        console.error(event);
-        /*
-
-        -1 – unstarted
-        0 – ended
-        1 – playing
-        2 – paused
-        3 – buffering
-        5 – video cued
-        */
-        
-        switch(event.data) {
-        case 2:
-            if (!paused)
-            {
-                paused = true;
-                notifyServer('pause');
-            }
-            else
-            {
-                console.error(player.getCurrentTime());
-                notifyServer('seek', player.getCurrentTime());
-            }
-            break;
-        case 1:
-            notifyServer('play');
-            if (paused)
-            {
-                paused = false;
-            }
-            break;
-        default:
-            break;
-        }
-
-    }
-    
     function pauseVideo() {
         //console.error('pausing');
         player.pauseVideo();
