@@ -1,5 +1,5 @@
     var state_before_latest_server_action = null;
-    var lastest_server_action = null; 
+    var latest_server_action_data = null; 
     var debounce_timeout = 100;
     var shouldNotify = true;
     var paused = true;
@@ -8,10 +8,11 @@
     var rid = Math.floor(Math.random() * UNIVERSE);
     console.error(msg);
     socket.on('notification', function (data) {
-        state_before_latest_server_action = getState(player);
         
-        // action: {operator: ..., parameter}
-        latest_server_action = data.request;
+        if (data.clientId === rid) {
+            return;
+        }
+        state_before_latest_server_action = getState(player);
         
         // TODO(shen) apply the action here
         switch(data.msgType) {
@@ -24,36 +25,6 @@
         }
         
         return;
-        
-        
-        //console.error('hello notification');
-        var msg = JSON.parse(data.message);
-        console.error(msg);
-        console.error(rid);
-        if (Number(msg.rid) === rid) {
-            return;
-        }
-        shouldNotify = false;
-        switch(msg.operator) {
-            case 'play':
-                console.error('told to play');
-                playVideo();
-                break;
-            case 'pause':
-                console.error('told to pause');
-                pauseVideo();
-                break;
-            case 'seek':
-                console.error('told to seek');
-                seekVideoTo(parseFloat(msg.stt));
-                break;
-            case 'load':
-                console.error('load ' + msg.arg);
-                player.loadVideoById(msg.arg);
-                break;
-            default:
-                break;
-        }
     });
 
     function createMessage(is_ack, rid, state) {
@@ -71,16 +42,26 @@
         }
     }
     
-    function applyActionToState(state, action) {
-        if (state === null || action === null) {
+    function applyActionToState(state, action_data) {
+        if (state === null || action_data === null) {
             return null;
         } else {
-            
+            // clone the state;
+            state = JSON.parse(JSON.stringify(state));
+            action = action_data.player_action;
+            if (action === player_action.PlayerAction.PLAY) {
+                state.playerState = player_state.PlayerState.PLAYING;
+            } else if (action === player_action.PlayerAction.PAUSE) {
+                state.playerState = player_state.PlayerState.PAUSED;
+            } else if (action === player_action.PlayerAction.SEEK) {
+                state.playerTime = action_data.playerTime;
+            }
+            return state;
         }
     }
     
     function applyActionToPlayer(data, player) {
-        latest_server_action = data.playerAction; 
+        var latest_server_action_data = data; 
             
         switch (data.playerAction) {
         case player_action.PLAYER_ACTION.PLAY:
@@ -160,7 +141,9 @@ $( document ).ready(function() {
          * current state
          */
         
-        new_state = applyActionToState(state_before_latest_server_action, latest_server_action);
+        new_state = applyActionToState(
+                state_before_latest_server_action, 
+                latest_server_action_data);
         actual_state = getState(player);
         
         // new_state === null means there was no action 
@@ -177,7 +160,7 @@ $( document ).ready(function() {
         /**
          *  clear the action and state. 
          */
-        state_before_latest_server_action = latest_server_action = false;
+        state_before_latest_server_action = latest_server_action_data = false;
 
        /*
         -1 – unstarted
@@ -231,24 +214,3 @@ $( document ).ready(function() {
     function onPlayerReady(event) {
         //event.target.playVideo();
     }
-
-    function pauseVideo() {
-        //console.error('pausing');
-        player.pauseVideo();
-        
-    }
-    
-    function stopVideo() {
-        player.stopVideo();
-        notifyServer('stop');
-    }
-    
-    function playVideo() {
-        player.playVideo();
-    }
-
-    function seekVideoTo(time) {
-        console.error(time);
-        player.seekTo(time);
-    }
-   
