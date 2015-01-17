@@ -1,6 +1,6 @@
     var state_before_latest_server_action = null;
     var latest_server_action_data = null; 
-    var debounce_timeout = 100;
+    var debounce_timeout = 500;
     var shouldNotify = true;
     var paused = true;
     var socket = io.connect('http://localhost:8080');
@@ -9,17 +9,18 @@
     console.error(msg);
     socket.on('notification', function (data) {
         
-        if (data.clientId === rid) {
+        data = JSON.parse(data.message);
+        if (parseInt(data.clientId) === rid) {
             return;
         }
         state_before_latest_server_action = getState(player);
-        
+
         // TODO(shen) apply the action here
         switch(data.msgType) {
-        case msg.MessageType.CHECK_LATENCY:
-            notifyServer(createMessage(true));
+        case msg.MsgType.CHECK_LATENCY:
+            notifyServer(createMessage(true, rid));
             break;
-        case msg.MessageType.ACTION:
+        case msg.MsgType.ACTION:
             applyActionToPlayer(data, player);
             break;
         }
@@ -30,11 +31,12 @@
     function createMessage(is_ack, rid, state) {
         if (is_ack) {
             return {
-                msgType: msg.MessageType.ACK,
+                msgType: msg.MsgType.ACK,
+                clientId: rid,
             };
         } else {
             return {
-                msgType: msg.MessageType.REQUEST,
+                msgType: msg.MsgType.REQUEST,
                 clientId: rid,
                 playerState: state.playerState,
                 playerTime: state.playerTime,
@@ -48,7 +50,7 @@
         } else {
             // clone the state;
             state = JSON.parse(JSON.stringify(state));
-            action = action_data.player_action;
+            action = parseInt(action_data.playerAction);
             if (action === player_action.PlayerAction.PLAY) {
                 state.playerState = player_state.PlayerState.PLAYING;
             } else if (action === player_action.PlayerAction.PAUSE) {
@@ -61,17 +63,17 @@
     }
     
     function applyActionToPlayer(data, player) {
-        var latest_server_action_data = data; 
+        latest_server_action_data = data; 
             
         switch (data.playerAction) {
-        case player_action.PLAYER_ACTION.PLAY:
+        case player_action.PlayerAction.PLAY:
             player.playVideo();
             break;
-        case player_action.PLAYER_ACTION.PAUSE:
+        case player_action.PlayerAction.PAUSE:
             player.pauseVideo();
             break;
-        case player_action.PLAYER_ACTION.SEEK:
-            player.seekVideoTo(data.playerTime);
+        case player_action.PlayerAction.SEEK:
+            player.seekTo(data.playerTime);
             break;
         }
     }
@@ -83,14 +85,21 @@
      * @returns {Boolean}
      */
     function compareStates(old_state, new_state) {
-        if (old_state.playerState === new_state.playerState) {
-            return Math.abs(old_state.playerTime - new_state.playerTime) <= 2 * debounce_timeout; 
+        // TODO (shen) hack and dangerous
+        var is_buffering = old_state.playerState === player_state.PlayerState.BUFFERING || 
+            new_state.playerState === player_state.PlayerState.BUFFERING; 
+
+        if (old_state.playerState === new_state.playerState || is_buffering) {
+            return Math.abs(old_state.playerTime - new_state.playerTime) <= 6 * debounce_timeout; 
         } else {
             return false;
         }
     }
     
     function getState(player) {
+        if (player === null) {
+            return null;
+        }
         var state = {
                 playerState: player.getPlayerState(),
                 playerTime: player.getCurrentTime(),
@@ -149,13 +158,14 @@ $( document ).ready(function() {
         // new_state === null means there was no action 
         // if actual state is different from new state, then it's probably triggered by user action
         // if compared states are the same, then acknowledge, otherwise report current state to server
+        var message;
         if (new_state === null || !compareStates(actual_state, new_state)) {
-            msg = createMessage(false, rid, actual_state);
+            message = createMessage(false, rid, actual_state);
         } else {
-            msg = createMessage(true);
+            message = createMessage(true, rid);
         }
         
-        notifyServer(msg);
+        notifyServer(message);
         
         /**
          *  clear the action and state. 

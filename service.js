@@ -17,6 +17,9 @@ var current_state;
 var SEEK_THRESHOLD = 1;
 
 app.listen(8080);
+last_player_time = 0;
+
+last_server_time = Date.now();
 
 function handler (req, res) {
     // parse URL
@@ -24,42 +27,48 @@ function handler (req, res) {
 
 
     var msgType = requestURL.query.msgType;
-    console.error(requestURL.query.msgType);
+    console.error('received message ' + JSON.stringify(requestURL.query));
 
     data = requestURL.query;
-    
+
     // if the message is to request
-    if (msgType === msg.MsgType.REQUEST) {
-        var message = 'msgType=' + msg.MsgType.ACTION 
-                    + '&clientId=' + data.clientId 
-                    + '&playerTime=' + data.playerTime
-                    + '&playerAction=';
+    if (msgType == msg.MsgType.REQUEST) {
+        var message = {
+            msgType: msg.MsgType.ACTION,
+            clientId: data.clientId,
+            playerTime: data.playerTime
+        };
         var server_expected_time = last_player_time;
-        if (current_state === playerState.PlayerState.PLAYING) {
-            server_expected_time = (Date.now()-last_server_time) + last_player_time;
+        if (current_state == state.PlayerState.PLAYING) {
+            server_expected_time = (Date.now()-last_server_time) / 1000 + last_player_time;
         }
         last_player_time = data.playerTime;
         last_server_time = Date.now();
         if (Math.abs(data.playerTime-server_expected_time) > SEEK_THRESHOLD) {
             //consider as seek.
-            message += action.PlayerAction.SEEK;
+            message.playerAction = action.PlayerAction.SEEK;
         }
-        else switch (data.playerState) {
-            case state.PLAYING:
-                message += action.PlayerAction.PLAY;
-                current_state = playerState.PlayerState.PLAYING;
-                break;
-            case state.PAUSED:
-                message += action.PlayerAction.PAUSE;
-                current_state = playerState.PlayerState.PAUSED;
-                break;
-            default:
-                break;
+        else
+        {
+            var player_state = parseInt(data.playerState);
+
+            switch (player_state) {
+                case state.PlayerState.PLAYING:
+                    message.playerAction = action.PlayerAction.PLAY;
+                    current_state = state.PlayerState.PLAYING;
+                    break;
+                case state.PlayerState.PAUSED:
+                    message.playerAction= action.PlayerAction.PAUSE;
+                    current_state = state.PlayerState.PAUSED;
+                    break;
+                default:
+                    break;
+            }
         }
         sendMessage(JSON.stringify(message));
     }
     // ack latency check
-    else if (msgType === msg.MsgType.ACK) {
+    else if (msgType == msg.MsgType.ACK) {
         latency[data.clientId] = (Date.now()-data.timestamp)/2;
     }
 
@@ -67,10 +76,10 @@ function handler (req, res) {
     res.writeHead(200, {'Content-Type': 'text/plain'});
     res.end("");
 
-    console.error(data);
 }
 
 function sendMessage(message) {
+    console.error('sending message ' + message);
     io.sockets.emit('notification', {'message': message});
 }
 
@@ -79,7 +88,10 @@ io.on('connection', function(socket){
 });
 
 setInterval(function checkLatency() {
-    sendMessage(JSON.stringify('msgType=' + msg.MsgType.CHECK_LATENCY
-                             + '&timestamp=' + Date.now()));
-}, 3000);
+    var message = {
+        msgType: msg.MsgType.CHECK_LATENCY,
+        timestamp: Date.now()
+    };
+ //   sendMessage(JSON.stringify(message));
+}, 300000);
 
