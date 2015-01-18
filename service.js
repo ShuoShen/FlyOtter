@@ -31,19 +31,28 @@ function handler (req, res) {
 
     data = requestURL.query;
 
+
+
+
     // if the message is to request
     if (msgType == msg.MsgType.REQUEST) {
+        
         var message = {
             msgType: msg.MsgType.ACTION,
             clientId: data.clientId,
             playerTime: data.playerTime
         };
         var server_expected_time = last_player_time;
+
         if (current_state == state.PlayerState.PLAYING) {
+            //console.error((Date.now()-last_server_time) / 1000);
             server_expected_time = (Date.now()-last_server_time) / 1000 + last_player_time;
         }
-        last_player_time = data.playerTime;
+        last_player_time = parseInt(data.playerTime);
         last_server_time = Date.now();
+        console.error("server_expected_time: "+server_expected_time);
+        console.error("last_player_time: "+last_player_time);
+        console.error("last_server_time: "+last_server_time);
         if (Math.abs(data.playerTime-server_expected_time) > SEEK_THRESHOLD) {
             //consider as seek.
             message.playerAction = action.PlayerAction.SEEK;
@@ -65,7 +74,7 @@ function handler (req, res) {
                     break;
             }
         }
-        sendMessage(JSON.stringify(message));
+        sendMessage(message);
     }
     // ack latency check
     else if (msgType == msg.MsgType.ACK) {
@@ -79,8 +88,18 @@ function handler (req, res) {
 }
 
 function sendMessage(message) {
-    console.error('sending message ' + message);
-    io.sockets.emit('notification', {'message': message});
+
+    var msg_id = Math.floor(Math.random() * 10000);
+    message.msgID = msg_id;
+
+    var msg_str = JSON.stringify(message);
+
+    if (message.playerAction == action.PlayerAction.SEEK) {
+        console.error("=====================");
+    }
+    console.error('sending message ' + msg_str);
+
+    io.sockets.emit('notification', {'message': msg_str});
 }
 
 io.on('connection', function(socket){
@@ -92,6 +111,6 @@ setInterval(function checkLatency() {
         msgType: msg.MsgType.CHECK_LATENCY,
         timestamp: Date.now()
     };
- //   sendMessage(JSON.stringify(message));
+ //   sendMessage(message);
 }, 300000);
 
