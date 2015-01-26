@@ -4,12 +4,19 @@
     var shouldNotify = true;
     var paused = true;
     var socket = io.connect('http://localhost:8080');
-    var UNIVERSE = 100000;
-    var rid = Math.floor(Math.random() * UNIVERSE);
+    
+    var ID_PREFIX = 'assignid=';
+    var rid;// = Math.floor(Math.random() * UNIVERSE);
     console.error(msg);
     socket.on('notification', function (data) {
-        
-        data = JSON.parse(data.message);
+        // start with assignid
+        var message = data.message;
+        if (message.indexOf(ID_PREFIX) == 0)
+        {
+            rid = parseInt(message.substring(ID_PREFIX.length, message.length));
+            return;
+        }
+        data = JSON.parse(message);
         if (parseInt(data.clientId) === rid) {
             return;
         }
@@ -236,6 +243,7 @@ $( document ).ready(function() {
             height: '390',
             width: '640',
             videoId: 'M7lc1UVf-VE',
+            //playerVars: { 'autoplay': 1, 'controls': 0 },
             events: {
                 'onReady': onPlayerReady,
                 'onStateChange': onPlayerStateChange

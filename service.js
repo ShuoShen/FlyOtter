@@ -15,6 +15,10 @@ var last_server_time;
 var latency = {};
 var current_state;
 var SEEK_THRESHOLD = 1;
+var max_latency = 0;
+
+var clients = [];
+var UNIVERSE = 100000;
 
 app.listen(8080);
 last_player_time = 0;
@@ -48,7 +52,7 @@ function handler (req, res) {
             //console.error((Date.now()-last_server_time) / 1000);
             server_expected_time = (Date.now()-last_server_time) / 1000 + last_player_time;
         }
-        last_player_time = parseInt(data.playerTime);
+        last_player_time = parseFloat(data.playerTime);
         last_server_time = Date.now();
         console.error("server_expected_time: "+server_expected_time);
         console.error("last_player_time: "+last_player_time);
@@ -56,29 +60,45 @@ function handler (req, res) {
         if (Math.abs(data.playerTime-server_expected_time) > SEEK_THRESHOLD) {
             //consider as seek.
             message.playerAction = action.PlayerAction.SEEK;
+            sendMessage(message);
         }
         else
         {
             var player_state = parseInt(data.playerState);
 
-            switch (player_state) {
+            switch (player_state) 
+            {
                 case state.PlayerState.PLAYING:
                     message.playerAction = action.PlayerAction.PLAY;
                     current_state = state.PlayerState.PLAYING;
+                    for (var rid in clients)
+                    {
+                        if (clients.hasOwnProperty(rid))
+                        {
+                            message.playerTime = last_player_time - (max_latency - latency[rid]);
+                            sendMessage(message, clients[rid]);
+                        }
+                    }
                     break;
                 case state.PlayerState.PAUSED:
                     message.playerAction= action.PlayerAction.PAUSE;
                     current_state = state.PlayerState.PAUSED;
+                    sendMessage(message);
                     break;
                 default:
                     break;
             }
         }
-        sendMessage(message);
     }
     // ack latency check
-    else if (msgType == msg.MsgType.ACK) {
-        latency[data.clientId] = (Date.now()-data.timestamp)/2;
+    else if (msgType == msg.MsgType.ACK) 
+    {
+        this_latency = (Date.now()-data.timestamp)/2
+        latency[data.clientId] = this_latency;
+        if (max_latency < this_latency)
+        {
+            max_latency = this_latency;
+        }
     }
 
     // end the response
@@ -87,7 +107,7 @@ function handler (req, res) {
 
 }
 
-function sendMessage(message) {
+function sendMessage(message, socket) {
 
     var msg_id = Math.floor(Math.random() * 10000);
     message.msgID = msg_id;
@@ -98,12 +118,23 @@ function sendMessage(message) {
         console.error("=====================");
     }
     console.error('sending message ' + msg_str);
-
-    io.sockets.emit('notification', {'message': msg_str});
+    socket = typeof socket !== 'undefined' ? socket : io.sockets;
+    socket.emit('notification', {'message': msg_str});
 }
 
 io.on('connection', function(socket){
-    console.log('a user connected');
+    console.info('New client connected (id=' + socket.id + ').');
+    var rid = Math.floor(Math.random() * UNIVERSE);
+    clients[rid] = socket;
+    socket.emit('notification', {'message': 'assignid='+rid});
+    // When socket disconnects, remove it from the list:
+    socket.on('disconnect', function() {
+        var index = clients.indexOf(socket);
+        if (index != -1) {
+            clients.splice(index, 1);
+            console.info('Client gone (id=' + socket.id + ').');
+        }
+    });
 });
 
 setInterval(function checkLatency() {
