@@ -9,17 +9,18 @@
     console.error(msg);
     socket.on('notification', function (data) {
         
-        if (data.clientId === rid) {
+        data = JSON.parse(data.message);
+        if (parseInt(data.clientId) === rid) {
             return;
         }
         state_before_latest_server_action = getState(player);
-        
+
         // TODO(shen) apply the action here
         switch(data.msgType) {
-        case msg.MessageType.CHECK_LATENCY:
-            notifyServer(createMessage(true));
+        case msg.MsgType.CHECK_LATENCY:
+            notifyServer(createMessage(true, rid));
             break;
-        case msg.MessageType.ACTION:
+        case msg.MsgType.ACTION:
             applyActionToPlayer(data, player);
             break;
         }
@@ -27,19 +28,21 @@
         return;
     });
 
-    function createMessage(is_ack, rid, state) {
-        if (is_ack) {
-            return {
-                msgType: msg.MessageType.ACK,
-            };
-        } else {
-            return {
-                msgType: msg.MessageType.REQUEST,
+    function createMessage(ack_msg_id, rid, state) {
+
+        var message = {
+                clientTime: Date.now() / 1000,
                 clientId: rid,
-                playerState: state.playerState,
                 playerTime: state.playerTime,
+                playerState: state.playerState,
             };
+        if (ack_msg_id) {
+            message.ackMsgID = ack_msg_id;
+            message.msgType = msg.MsgType.ACK;
+        } else {
+            message.msgType = msg.MsgType.REQUEST;
         }
+        return message;
     }
     
     function applyActionToState(state, action_data) {
@@ -48,7 +51,7 @@
         } else {
             // clone the state;
             state = JSON.parse(JSON.stringify(state));
-            action = action_data.player_action;
+            action = parseInt(action_data.playerAction);
             if (action === player_action.PlayerAction.PLAY) {
                 state.playerState = player_state.PlayerState.PLAYING;
             } else if (action === player_action.PlayerAction.PAUSE) {
@@ -61,17 +64,17 @@
     }
     
     function applyActionToPlayer(data, player) {
-        var latest_server_action_data = data; 
+        latest_server_action_data = data; 
             
         switch (data.playerAction) {
-        case player_action.PLAYER_ACTION.PLAY:
+        case player_action.PlayerAction.PLAY:
             player.playVideo();
             break;
-        case player_action.PLAYER_ACTION.PAUSE:
+        case player_action.PlayerAction.PAUSE:
             player.pauseVideo();
             break;
-        case player_action.PLAYER_ACTION.SEEK:
-            player.seekVideoTo(data.playerTime);
+        case player_action.PlayerAction.SEEK:
+            player.seekTo(data.playerTime);
             break;
         }
     }
@@ -82,15 +85,22 @@
      * @param new_state
      * @returns {Boolean}
      */
-    function compareStates(old_state, new_state) {
-        if (old_state.playerState === new_state.playerState) {
-            return Math.abs(old_state.playerTime - new_state.playerTime) <= 2 * debounce_timeout; 
+    function compareStates(old_state, new_state, only_compare_time) {
+        // TODO (shen) hack and dangerous
+        var is_buffering = old_state.playerState === player_state.PlayerState.BUFFERING || 
+            new_state.playerState === player_state.PlayerState.BUFFERING; 
+
+        if (old_state.playerState === new_state.playerState || is_buffering || only_compare_time) {
+            return Math.abs(old_state.playerTime - new_state.playerTime) <= 3 * debounce_timeout; 
         } else {
             return false;
         }
     }
     
     function getState(player) {
+        if (player === null) {
+            return null;
+        }
         var state = {
                 playerState: player.getPlayerState(),
                 playerTime: player.getCurrentTime(),
@@ -99,10 +109,15 @@
     }
 
     function notifyServer(msg) {
-        $.post('http://localhost:8080/?msgType=' + msg.msgType 
-                + '&clientId=' + msg.clientId 
-                + '&playerTime=' + msg.playerTime 
-                + '&playerState=' + msg.playerState, 
+        var msg_str = '';
+        var i = 0; 
+        for (var key in msg) {
+            msg_str += (i++) ? '&' : '?';
+            msg_str += key + '=' + msg[key];
+        }
+
+console.error(msg_str);
+        $.post('http://localhost:8080/' + msg_str, 
                 function(a) {}); 
     }
 
@@ -149,13 +164,31 @@ $( document ).ready(function() {
         // new_state === null means there was no action 
         // if actual state is different from new state, then it's probably triggered by user action
         // if compared states are the same, then acknowledge, otherwise report current state to server
-        if (new_state === null || !compareStates(actual_state, new_state)) {
-            msg = createMessage(false, rid, actual_state);
-        } else {
-            msg = createMessage(true);
+        var message;
+        if (new_state === null) {
+           message = createMessage(false, rid, actual_state); 
+        } else if (!compareStates(actual_state, new_state)) {  
+        // dirty code: if the actual state is same as expected, then we have two scenarios
+
+            if (latest_server_action_data.playerAction == player_action.PlayerAction.SEEK &&
+                (compareStates(actual_state, new_state, true) || 
+                    compareStates(actual_state, state_before_latest_server_action, true)) && 
+                actual_state.playerState == player_state.PlayerState.PAUSED
+            ) {
+                // it's a seek event: the final states have the same player time as expected or
+                // the same player time as before the event and now it's paused. 
+                // in this case, don't have enough knowledge to tell if it's an acknowledge
+                // because youtube has weird pause-pause-(play) pattern upon an actual seek event
+                // we will wait for further event to trigger
+                return;
+            } else {
+                message = createMessage(false, rid, actual_state);
+            }
+        } else { // acknowlege
+            message = createMessage(latest_server_action_data.msgID, rid, actual_state);
         }
         
-        notifyServer(msg);
+        notifyServer(message);
         
         /**
          *  clear the action and state. 
