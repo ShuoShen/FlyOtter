@@ -18,7 +18,7 @@ var SEEK_THRESHOLD = 1;
 var max_latency = 0;
 
 var clients = [];
-var UNIVERSE = 100000;
+//var UNIVERSE = 100000;
 
 app.listen(8080);
 last_player_time = 0;
@@ -124,9 +124,9 @@ function sendMessage(message, socket) {
 
 io.on('connection', function(socket){
     console.info('New client connected (id=' + socket.id + ').');
-    var rid = Math.floor(Math.random() * UNIVERSE);
-    clients[rid] = socket;
-    socket.emit('notification', {'message': 'assignid='+rid});
+    //var rid = Math.floor(Math.random() * UNIVERSE);
+    clients[socket.id] = socket;
+    socket.emit('notification', {'message': 'assignid='+socket.id});
     // When socket disconnects, remove it from the list:
     socket.on('disconnect', function() {
         var index = clients.indexOf(socket);

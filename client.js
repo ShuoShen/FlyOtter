@@ -13,11 +13,11 @@
         var message = data.message;
         if (message.indexOf(ID_PREFIX) == 0)
         {
-            rid = parseInt(message.substring(ID_PREFIX.length, message.length));
+            rid = message.substring(ID_PREFIX.length, message.length);
             return;
         }
         data = JSON.parse(message);
-        if (parseInt(data.clientId) === rid) {
+        if (data.clientId === rid) {
             return;
         }
         state_before_latest_server_action = getState(player);
