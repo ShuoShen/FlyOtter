@@ -53,7 +53,7 @@ function handler (req, res) {
                 console.error("last_server_time: "+last_server_time);
                 if (Math.abs(data.playerTime-server_expected_time) > SEEK_THRESHOLD) {
                     //consider as seek.
-                    message.playerAction = action.PlayerAction.SEEK;
+                    message.playerAction = action.SEEK;
                 }
                 else
                 {
@@ -61,11 +61,11 @@ function handler (req, res) {
 
                     switch (player_state) {
                         case state.PLAYING:
-                            message.playerAction = action.PlayerAction.PLAY;
+                            message.playerAction = action.PLAY;
                             current_state = state.PLAYING;
                             break;
                         case state.PAUSED:
-                            message.playerAction= action.PlayerAction.PAUSE;
+                            message.playerAction= action.PAUSE;
                             current_state = state.PAUSED;
                             break;
                         default:
@@ -102,7 +102,7 @@ function sendMessage(message) {
 
     var msg_str = JSON.stringify(message);
 
-    if (message.playerAction == action.PlayerAction.SEEK) {
+    if (message.playerAction == action.SEEK) {
         console.error("=====================");
     }
     console.error('sending message ' + msg_str);

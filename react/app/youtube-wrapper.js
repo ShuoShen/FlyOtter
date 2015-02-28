@@ -3,6 +3,7 @@ var youtube = require('youtube-iframe-player');
 var Progress = require('react-progressbar');
 var Dom = require('domquery');
 var PlayerState = require('lib/player_state');
+var PlayerAction = require('lib/player_action');
 var msg = require('lib/msg');
 var io = require('lib/socket.io');
 //var request = require('request');
@@ -11,24 +12,22 @@ var http = require('http');
 var UNIVERSE = 100000;
 var rid = Math.floor(Math.random() * UNIVERSE);
 var socket = io.connect('http://localhost:8989');
-socket.on('notification', function (data) {
-    data = JSON.parse(data.message);
-    if (parseInt(data.clientId) === rid) {
-        return;
-    }
-    
-    // TODO(shen) apply the action here
-    switch(data.msgType) {
-    case msg.MsgType.CHECK_LATENCY:
-        notifyServer(createMessage(true, rid));
+
+function applyActionToPlayer(data, player) {
+    latest_server_action_data = data; 
+        
+    switch (data.playerAction) {
+    case PlayerAction.PLAY:
+        player.playVideo();
         break;
-    case msg.MsgType.ACTION:
-        applyActionToPlayer(data, player);
+    case PlayerAction.PAUSE:
+        player.pauseVideo();
+        break;
+    case PlayerAction.SEEK:
+        player.seekTo(data.playerTime);
         break;
     }
-    
-    return;
-});
+}
 require('./style.css');
 
 var YoutubePlayerWrapper = React.createClass({
@@ -177,16 +176,16 @@ var YoutubePlayer = React.createClass({
 
     onPlayerControlClick: function(evt) {
         switch(this.state.player.getPlayerState()) {
-            case -1:
-            case 0:
-            case 2:
-                this.state.player.playVideo();
-                message = this.createMessage(false, rid); 
-                this.notifyServer(message);
+        case -1:
+        case 0:
+        case 2:
+            this.state.player.playVideo();
+            message = this.createMessage(false, rid); 
+            this.notifyServer(message);
             break;
         default:
             this.state.player.pauseVideo();
-        break;
+            break;
         }
     },
 
@@ -267,7 +266,7 @@ var YoutubePlayer = React.createClass({
                         'onReady': this.onPlayerReady,
                         'onStateChange': this.onPlayerStateChange
                     },
-                playerVars: { 'autoplay': 0, 'controls': 0 }
+                    playerVars: { 'autoplay': 0, 'controls': 0 }
                 })
             });
         }
@@ -278,6 +277,25 @@ var YoutubePlayer = React.createClass({
         message = this.createMessage(false, rid, PlayerState.PLAYING); 
         this.notifyServer(message);
     },
+});
+
+socket.on('notification', function (data) {
+    data = JSON.parse(data.message);
+    if (parseInt(data.clientId) === rid) {
+        return;
+    }
+    console.error(data);
+    // TODO(shen) apply the action here
+    switch(data.msgType) {
+    case msg.MsgType.CHECK_LATENCY:
+        notifyServer(createMessage(true, rid));
+        break;
+    case msg.MsgType.ACTION:
+        applyActionToPlayer(data, YoutubePlayer.player);
+        break;
+    }
+    
+    return;
 });
 
 youtube.init(function() {
