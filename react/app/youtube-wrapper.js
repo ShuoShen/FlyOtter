@@ -55,9 +55,30 @@ var YoutubePlayer = React.createClass({
     },   
 
     getInitialState: function() {
+        socket.on('notification', this.messageRecieve);
+
         return {
             'playerProgress': 0
         };
+    },
+
+    messageRecieve: function(data){
+        data = JSON.parse(data.message);
+        if (parseInt(data.clientId) === rid) {
+            return;
+        }
+        console.error(data);
+        
+        switch(data.msgType) {
+        case msg.MsgType.CHECK_LATENCY:
+            notifyServer(createMessage(true, rid));
+            break;
+        case msg.MsgType.ACTION:
+            applyActionToPlayer(data, this.state.player);
+            break;
+        }
+        
+        return;
     },
 
     tick: function() {
@@ -180,8 +201,6 @@ var YoutubePlayer = React.createClass({
         case 0:
         case 2:
             this.state.player.playVideo();
-            message = this.createMessage(false, rid); 
-            this.notifyServer(message);
             break;
         default:
             this.state.player.pauseVideo();
@@ -279,24 +298,7 @@ var YoutubePlayer = React.createClass({
     },
 });
 
-socket.on('notification', function (data) {
-    data = JSON.parse(data.message);
-    if (parseInt(data.clientId) === rid) {
-        return;
-    }
-    console.error(data);
-    // TODO(shen) apply the action here
-    switch(data.msgType) {
-    case msg.MsgType.CHECK_LATENCY:
-        notifyServer(createMessage(true, rid));
-        break;
-    case msg.MsgType.ACTION:
-        applyActionToPlayer(data, YoutubePlayer.player);
-        break;
-    }
-    
-    return;
-});
+
 
 youtube.init(function() {
     React.render(
