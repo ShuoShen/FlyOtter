@@ -13,21 +13,6 @@ var UNIVERSE = 100000;
 var rid = Math.floor(Math.random() * UNIVERSE);
 var socket = io.connect('http://localhost:8989');
 
-function applyActionToPlayer(data, player) {
-    latest_server_action_data = data; 
-        
-    switch (data.playerAction) {
-    case PlayerAction.PLAY:
-        player.playVideo();
-        break;
-    case PlayerAction.PAUSE:
-        player.pauseVideo();
-        break;
-    case PlayerAction.SEEK:
-        player.seekTo(data.playerTime);
-        break;
-    }
-}
 require('./style.css');
 
 var YoutubePlayerWrapper = React.createClass({
@@ -45,6 +30,22 @@ var YoutubePlayer = React.createClass({
     propTypes: {
         height: React.PropTypes.number,
         width: React.PropTypes.number
+    },
+
+    applyActionToPlayer: function (data, player) {
+        switch (data.playerAction) {
+        case PlayerAction.PLAY:
+            player.playVideo();
+            this.state.playerState = PlayerState.PLAY;
+            break;
+        case PlayerAction.PAUSE:
+            this.state.playerState = PlayerState.PAUSED;
+            player.pauseVideo();
+            break;
+        case PlayerAction.SEEK:
+            player.seekTo(data.playerTime);
+            break;
+        }
     },
 
     getDefaultProps: function() {
@@ -75,7 +76,7 @@ var YoutubePlayer = React.createClass({
             notifyServer(createMessage(true, rid));
             break;
         case msg.MsgType.ACTION:
-            applyActionToPlayer(data, this.state.player);
+            this.applyActionToPlayer(data, this.state.player);
             break;
         }
         

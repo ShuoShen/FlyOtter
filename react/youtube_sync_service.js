@@ -34,14 +34,14 @@ function handler (req, res) {
             var msgType = data.msgType;
             // if the message is to request
             if (msgType == msg.MsgType.REQUEST) {
-                
-                var message = {
+                data.msgType = msg.MsgType.ACTION;
+                /*var message = {
                     msgType: msg.MsgType.ACTION,
                     clientId: data.clientId,
                     playerTime: data.playerTime,
                     playerAction: data.playerAction
                 };
-                /*var server_expected_time = last_player_time;
+                var server_expected_time = last_player_time;
 
                 if (current_state == state.PLAYING) {
                     //console.error((Date.now()-last_server_time) / 1000);
@@ -73,7 +73,7 @@ function handler (req, res) {
                             break;
                     }
                 }*/
-                sendMessage(message);
+                sendMessage(data);
             }
             // ack latency check
             else if (msgType == msg.MsgType.ACK) {
