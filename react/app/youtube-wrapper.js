@@ -58,7 +58,8 @@ var YoutubePlayer = React.createClass({
         socket.on('notification', this.messageRecieve);
 
         return {
-            'playerProgress': 0
+            'playerProgress': 0,
+            'playerState': PlayerState.UNSTARTED
         };
     },
 
@@ -158,7 +159,10 @@ var YoutubePlayer = React.createClass({
 
         var player = this.state.player;
         if (player) {
-            player.seekTo(percent * player.getDuration() / 100);
+            var time = percent * player.getDuration() / 100
+            player.seekTo(time);
+            message = this.createMessage(false, rid, time, PlayerAction.SEEK); 
+            this.notifyServer(message);
         }
         this.setState({
             playerProgress: percent,
@@ -177,13 +181,13 @@ var YoutubePlayer = React.createClass({
         });
     },
 
-    createMessage: function (ack_msg_id, rid, state) {
+    createMessage: function (ack_msg_id, rid, time, action) {
 
         var message = {
             clientTime: Date.now() / 1000,
             clientId: rid,
-            playerTime: this.state.player.getCurrentTime(),
-            playerState: this.state.player.getPlayerState(),
+            playerTime: time,
+            playerAction: action,
         };
         if (ack_msg_id) {
             message.ackMsgID = ack_msg_id;
@@ -196,16 +200,22 @@ var YoutubePlayer = React.createClass({
 
 
     onPlayerControlClick: function(evt) {
-        switch(this.state.player.getPlayerState()) {
-        case -1:
-        case 0:
-        case 2:
+        switch(this.state.playerState) {
+        case PlayerState.UNSTARTED:
+        case PlayerState.ENDED:
+        case PlayerState.PAUSED:
+            this.state.playerState = PlayerState.PLAYING;
             this.state.player.playVideo();
+            message = this.createMessage(false, rid, this.state.player.getCurrentTime(), PlayerAction.PLAY); 
             break;
         default:
+            this.state.playerState = PlayerState.PAUSED;
             this.state.player.pauseVideo();
+            message = this.createMessage(false, rid, this.state.player.getCurrentTime(), PlayerAction.PAUSE); 
             break;
         }
+        
+        this.notifyServer(message);
     },
 
     postData:function(data) {
@@ -293,8 +303,8 @@ var YoutubePlayer = React.createClass({
     },
   
     onPlayerStateChange: function() {
-        message = this.createMessage(false, rid, PlayerState.PLAYING); 
-        this.notifyServer(message);
+        //message = this.createMessage(false, rid, PlayerState.PLAYING); 
+        //this.notifyServer(message);
     },
 });
 

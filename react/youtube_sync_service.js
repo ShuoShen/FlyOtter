@@ -10,7 +10,7 @@ var action = require('./node_modules/lib/player_action.js');
 var last_player_time; //in seconds
 var last_server_time;
 var latency = {};
-var current_state;
+var current_state = state.PAUSED;
 var SEEK_THRESHOLD = 1;
 
 app.listen(8989);
@@ -38,9 +38,10 @@ function handler (req, res) {
                 var message = {
                     msgType: msg.MsgType.ACTION,
                     clientId: data.clientId,
-                    playerTime: data.playerTime
+                    playerTime: data.playerTime,
+                    playerAction: data.playerAction
                 };
-                var server_expected_time = last_player_time;
+                /*var server_expected_time = last_player_time;
 
                 if (current_state == state.PLAYING) {
                     //console.error((Date.now()-last_server_time) / 1000);
@@ -71,7 +72,7 @@ function handler (req, res) {
                         default:
                             break;
                     }
-                }
+                }*/
                 sendMessage(message);
             }
             // ack latency check
